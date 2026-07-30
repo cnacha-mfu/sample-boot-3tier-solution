@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Library - Create and List Books</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 2em; max-width: 900px; }
+        h1 { font-size: 1.3em; border-bottom: 2px solid #ccc; padding-bottom: .3em; }
+        label { display: inline-block; width: 130px; }
+        input { padding: .3em; margin-bottom: .5em; }
+        button { padding: .4em .9em; cursor: pointer; }
+        table { border-collapse: collapse; width: 100%; margin-top: 1em; }
+        th, td { border: 1px solid #ddd; padding: .5em; text-align: left; font-size: .9em; }
+        th { background: #f4f4f4; }
+        .note { background: #fffbe6; border-left: 4px solid #f0c000; padding: .8em; margin: 1em 0; font-size: .9em; }
+        .err { color: #b00; }
+        .ok { color: #070; }
+    </style>
+</head>
+<body>
+
+<!--
+    THE PRESENTATION TIER.
+
+    This page is served from http://localhost:8081 but every piece of data on it
+    comes from http://localhost:8080. It holds no data of its own and cannot
+    reach the database - it can only ask the web service.
+
+    Open the browser's Network tab while you use the page and you will see the
+    tier boundary as real HTTP traffic.
+-->
+
+<h1>Add a book</h1>
+<form id="createBookForm">
+    <label for="title">Title:</label>
+    <input type="text" id="title" name="title" required><br>
+    <label for="author">Author:</label>
+    <input type="text" id="author" name="author"><br>
+    <label for="year">Publish year:</label>
+    <input type="number" id="year" name="year" value="2024"><br>
+    <label for="categoryId">Category id:</label>
+    <input type="number" id="categoryId" name="categoryId" value="1"><br>
+    <button type="submit">Create book</button>
+    <span id="createResult"></span>
+</form>
+
+<h1>Books</h1>
+<button id="reloadButton">Reload</button>
+<div id="bookList"></div>
+
+<h1>Partial update (PATCH)</h1>
+<div class="note">
+    <strong>This is the MapStruct lesson, live.</strong><br>
+    Send <em>only</em> a new title. The author, the year and the added date are
+    not in the request at all &mdash; and they survive, because the mapper is set to
+    <code>nullValuePropertyMappingStrategy = IGNORE</code>.<br>
+    Watch the row in the table above: only the title changes.
+</div>
+<form id="patchBookForm">
+    <label for="patchId">Book id:</label>
+    <input type="number" id="patchId" value="1" required><br>
+    <label for="patchTitle">New title:</label>
+    <input type="text" id="patchTitle" value="Effective Java, 3rd Edition" required><br>
+    <button type="submit">PATCH title only</button>
+    <span id="patchResult"></span>
+</form>
+
+<script>
+    // The web service. A DIFFERENT origin from this page - that is why the
+    // service needs the CORS settings in WebConfig.java. Delete them and every
+    // call below fails in the browser (but still works in Postman).
+    var SERVICE = 'http://localhost:8080/api';
+
+    $(document).ready(function () {
+
+        function loadBooks() {
+            $('#bookList').html('Loading...');
+            $.ajax({
+                type: 'GET',
+                url: SERVICE + '/books',
+                success: function (books) {
+                    console.log('Books:', books);
+                    var html = '<table><tr><th>id</th><th>title</th><th>author</th>'
+                             + '<th>publish-year</th><th>added-date</th><th>category</th></tr>';
+                    books.forEach(function (book) {
+                        // These names come straight from BookDTO. The browser
+                        // never sees the entity's field names.
+                        html += '<tr>'
+                              + '<td>' + book.id + '</td>'
+                              + '<td>' + book.title + '</td>'
+                              + '<td>' + (book.author || '') + '</td>'
+                              + '<td>' + (book['publish-year'] || '') + '</td>'
+                              + '<td>' + (book['added-date'] || '') + '</td>'
+                              + '<td>' + (book.category_name || '') + '</td>'
+                              + '</tr>';
+                    });
+                    $('#bookList').html(html + '</table>');
+                },
+                error: function (error) {
+                    console.error('Error loading books:', error);
+                    $('#bookList').html('<p class="err">Could not load books. '
+                        + 'Is the web service running on port 8080?</p>');
+                }
+            });
+        }
+
+        loadBooks();
+
+        $('#reloadButton').click(function () {
+            loadBooks();
+        });
+
+        // CREATE - the whole book
+        $('#createBookForm').submit(function (event) {
+            event.preventDefault();
+
+            // The keys here must match BookDTO's JSON names, not the entity's
+            // field names: "publish-year" and "category_id".
+            var bookData = {
+                title: $('#title').val(),
+                author: $('#author').val(),
+                'publish-year': parseInt($('#year').val(), 10),
+                category_id: parseInt($('#categoryId').val(), 10)
+            };
+
+            $.ajax({
+                type: 'POST',
+                url: SERVICE + '/books',
+                data: JSON.stringify(bookData),
+                contentType: 'application/json',
+                success: function (created) {
+                    console.log('Book created:', created);
+                    $('#createResult').html('<span class="ok">created id '
+                        + created.id + '</span>');
+                    loadBooks();
+                },
+                error: function (error) {
+                    console.error('Error creating book:', error);
+                    $('#createResult').html('<span class="err">failed - see console</span>');
+                }
+            });
+        });
+
+        // PARTIAL UPDATE - one field only
+        $('#patchBookForm').submit(function (event) {
+            event.preventDefault();
+
+            // Only the title. No author, no year, no date.
+            var patchData = { title: $('#patchTitle').val() };
+
+            $.ajax({
+                type: 'PATCH',
+                url: SERVICE + '/books/' + $('#patchId').val(),
+                data: JSON.stringify(patchData),
+                contentType: 'application/json',
+                success: function (updated) {
+                    console.log('Book after PATCH:', updated);
+                    $('#patchResult').html('<span class="ok">title changed, author still "'
+                        + (updated.author || '') + '"</span>');
+                    loadBooks();
+                },
+                error: function (error) {
+                    console.error('Error patching book:', error);
+                    $('#patchResult').html('<span class="err">failed - see console</span>');
+                }
+            });
+        });
+    });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,769 @@
+{
+  "info": {
+    "_postman_id": "c4a2e8d1-77b3-4e60-9a52-6b1f3d8c7e42",
+    "name": "Library 3-tier (DTO + MapStruct)",
+    "description": "Demo collection for the Day 4 sample: three tiers, DTOs, MapStruct partial update.\n\nBefore you start:\n1. MySQL is running, spring_db / spring_user exist.\n2. From the TOP folder:  mvn install -DskipTests\n3. Start the service:    mvn -pl library-web-service spring-boot:run\n\nNo API key this time - the day 4 sample has no security, like the lab.\n\nThe folder '3. Partial update' is the lesson. Run it top to bottom: the same one-field body is sent twice, once with PATCH and once with PUT, and the results are opposite.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080/api",
+      "type": "string"
+    },
+    {
+      "key": "newBookId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "patchDemoId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. What a DTO looks like",
+      "item": [
+        {
+          "name": "GET /books/1 - flat, renamed, trimmed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "",
+                  "pm.test(\"renamed: the JSON says publish-year, the field is called year\", () => {",
+                  "    pm.expect(b).to.have.property('publish-year');",
+                  "    pm.expect(b).to.not.have.property('year');",
+                  "});",
+                  "",
+                  "pm.test(\"flattened: category became two plain fields\", () => {",
+                  "    pm.expect(b.category_id).to.eql(1);",
+                  "    pm.expect(b.category_name).to.eql('Programming');",
+                  "    pm.expect(b.category).to.be.undefined;",
+                  "});",
+                  "",
+                  "pm.test(\"trimmed: the entity's transactions list never travels\", () => {",
+                  "    pm.expect(b.transactions).to.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/books/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "books",
+                "1"
+              ]
+            },
+            "description": "Compare with the JPA sample, where this returned a nested \"category\": { ... } object and needed @JsonIgnore to avoid an endless loop.\n\nBookDTO decides all of it. The entity has no Jackson annotations left at all."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /transactions - two relationships flattened",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const t = pm.response.json()[0];",
+                  "pm.test(\"book and member each became an id + a label\", () => {",
+                  "    pm.expect(t).to.have.property('book_id');",
+                  "    pm.expect(t).to.have.property('book_title');",
+                  "    pm.expect(t).to.have.property('member_id');",
+                  "    pm.expect(t).to.have.property('member_name');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ]
+            },
+            "description": "TransactionMapper flattens BOTH @ManyToOne relationships at once, so a client can print \"Somchai Jaidee borrowed Effective Java\" from a single response."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /categories - no books array",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"CategoryDTO deliberately has no books field\", () => {",
+                  "    pm.expect(pm.response.json()[0].books).to.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/categories",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories"
+              ]
+            },
+            "description": "The Category entity HAS a List<Book>. The DTO does not - a client listing categories does not want every book in every one of them.\n\nThis is a design decision, and the DTO is where you get to make it."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /categories/2/books",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"3 books in Databases\", () => pm.expect(pm.response.json().length).to.eql(3));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/categories/2/books",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "categories",
+                "2",
+                "books"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Create and read",
+      "item": [
+        {
+          "name": "POST /books - 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+                  "const b = pm.response.json();",
+                  "pm.collectionVariables.set('newBookId', b.id);",
+                  "pm.test(\"the database assigned an id\", () => pm.expect(b.id).to.be.a('number'));",
+                  "pm.test(\"the reply is a DTO too, with category_name resolved\", () => {",
+                  "    pm.expect(b.category_name).to.eql('Programming');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"title\": \"Refactoring\",\n    \"author\": \"Martin Fowler\",\n    \"publish-year\": 2019,\n    \"category_id\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/books",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "books"
+              ]
+            },
+            "description": "The body uses the DTO's names: publish-year and category_id, a plain number.\n\nThe controller turns category_id into a real Category row before saving - a job the mapper cannot do, because it needs the database."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /books - unknown category is 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400 Bad Request\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"title\": \"Nowhere\",\n    \"author\": \"Nobody\",\n    \"publish-year\": 2000,\n    \"category_id\": 999\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/books",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "books"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /books/{id} - unknown is 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"404 Not Found\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/books/9999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "books",
+                "9999"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Partial update - the MapStruct lesson",
+      "description": "Run these five in order. Steps 2 and 4 send the SAME one-field body; only the method differs.",
+      "item": [
+        {
+          "name": "Step 1 - create a book with every field filled",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+                  "const b = pm.response.json();",
+                  "pm.collectionVariables.set('patchDemoId', b.id);",
+                  "pm.test(\"author, year and date are all set\", () => {",
+                  "    pm.expect(b.author).to.eql('Kent Beck');",
+                  "    pm.expect(b['publish-year']).to.eql(2002);",
+                  "    pm.expect(b['added-date']).to.not.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"title\": \"Before the patch\",\n    \"author\": \"Kent Beck\",\n    \"publish-year\": 2002,\n    \"category_id\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/books",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "books"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Step 2 - PATCH the title only (merge)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test(\"the title changed\", () => pm.expect(b.title).to.eql('After the patch'));",
+                  "pm.test(\"the author was NOT sent, and survived\", () => {",
+                  "    pm.expect(b.author).to.eql('Kent Beck');",
+                  "});",
+                  "pm.test(\"the year was NOT sent, and survived\", () => {",
+                  "    pm.expect(b['publish-year']).to.eql(2002);",
+                  "});",
+                  "pm.test(\"the date was NOT sent, and survived\", () => {",
+                  "    pm.expect(b['added-date']).to.not.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"title\": \"After the patch\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/books/{{patchDemoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "books",
+                "{{patchDemoId}}"
+              ]
+            },
+            "description": "One field in, everything else untouched.\n\nThe controller LOADS the existing row first, then lets the mapper merge on top. The mapper skips every null field, because of:\n\n    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)\n\nLook at BookMapperImpl.java in target/generated-sources and you will see the generated  if (dto.getAuthor() != null)  guards that do it."
+          },
+          "response": []
+        },
+        {
+          "name": "Step 3 - confirm with a fresh GET",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test(\"really stored, not just echoed back\", () => {",
+                  "    pm.expect(b.title).to.eql('After the patch');",
+                  "    pm.expect(b.author).to.eql('Kent Beck');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/books/{{patchDemoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "books",
+                "{{patchDemoId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Step 4 - PUT the SAME body (replace)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"204 No Content\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"title\": \"After the put\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/books/{{patchDemoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "books",
+                "{{patchDemoId}}"
+              ]
+            },
+            "description": "Same shape of body as step 2, different verb.\n\nPUT builds a NEW Book and maps onto that, so anything the body left out stays null. PUT means replace - and the next request proves it."
+          },
+          "response": []
+        },
+        {
+          "name": "Step 5 - the other fields are gone",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test(\"the title changed\", () => pm.expect(b.title).to.eql('After the put'));",
+                  "pm.test(\"PUT wiped the author it was not given\", () => {",
+                  "    pm.expect(b.author).to.be.null;",
+                  "});",
+                  "pm.test(\"PUT wiped the year too\", () => {",
+                  "    pm.expect(b['publish-year']).to.be.null;",
+                  "});",
+                  "pm.test(\"and the category\", () => {",
+                  "    pm.expect(b.category_name).to.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/books/{{patchDemoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "books",
+                "{{patchDemoId}}"
+              ]
+            },
+            "description": "Compare this with step 3. Same one-field body, opposite outcome.\n\nThat is the difference between merge and replace, and it is why an API needs both verbs."
+          },
+          "response": []
+        },
+        {
+          "name": "Step 6 - clean up",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"204 No Content\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/books/{{patchDemoId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "books",
+                "{{patchDemoId}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. Members and borrowing",
+      "item": [
+        {
+          "name": "GET /members/1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"join-date is renamed by MemberDTO\", () => {",
+                  "    pm.expect(pm.response.json()).to.have.property('join-date');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/members/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /members/1 - change only the email",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));",
+                  "const m = pm.response.json();",
+                  "pm.test(\"email changed\", () => pm.expect(m.email).to.eql('updated@mfu.ac.th'));",
+                  "pm.test(\"name survived - same partial update, different entity\", () => {",
+                  "    pm.expect(m.name).to.eql('Somchai Jaidee');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"updated@mfu.ac.th\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/members/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "1"
+              ]
+            },
+            "description": "The same MapStruct trick on a second entity, to show it is a pattern and not a one-off."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /transactions - the design-doc body is back",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201 Created\", () => pm.response.to.have.status(201));",
+                  "const t = pm.response.json();",
+                  "pm.test(\"reply names both sides\", () => {",
+                  "    pm.expect(t.book_title).to.be.a('string');",
+                  "    pm.expect(t.member_name).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"book_id\": 9,\n    \"member_id\": 3,\n    \"type\": \"borrow\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ]
+            },
+            "description": "{ book_id, member_id, type } - exactly what library-design.md asked for.\n\nIn the JPA sample the entity was the request body, so this had to be sent as a nested { \"book\": { \"id\": 9 } }. TransactionDTO put the wire format back under our control."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /transactions - already borrowed is 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"400 Bad Request\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"explains why\", () => {",
+                  "    pm.expect(pm.response.text()).to.include('already borrowed');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"book_id\": 9,\n    \"member_id\": 1,\n    \"type\": \"borrow\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "transactions"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /members/3/transactions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 OK\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/members/3/transactions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "members",
+                "3",
+                "transactions"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

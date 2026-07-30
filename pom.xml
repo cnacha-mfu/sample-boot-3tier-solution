@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.3.0.RELEASE</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+
+    <groupId>th.mfu</groupId>
+    <artifactId>library-3tier</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <!--
+        packaging=pom means this project builds no jar of its own. Its only job
+        is to tie the three modules together and hold the settings they share.
+
+        The same idea as the top pom.xml of the lab-web-3tier lab. ALWAYS run
+        Maven from this folder: the web service needs the domain model, and the
+        domain model must be built first.
+    -->
+    <packaging>pom</packaging>
+    <name>library-3tier</name>
+
+    <modules>
+        <!-- Data source layer: the entity classes and the database -->
+        <module>library-domain-model</module>
+        <!-- Domain + service layer: REST service on port 8080 -->
+        <module>library-web-service</module>
+        <!-- Presentation layer: the web page on port 8081 -->
+        <module>library-web-front</module>
+    </modules>
+
+    <properties>
+        <java.version>11</java.version>
+        <mapstruct.version>1.5.5.Final</mapstruct.version>
+        <!--
+            RESTEasy 3.x, not the 6.2.5.Final shown on the slide. Version 6 is
+            built on jakarta.ws.rs, but Spring Boot 2.3 is still on javax.*, and
+            the lab's ConcertResourceIT imports javax.ws.rs.* too. Mixing the two
+            gives "NoClassDefFoundError: javax/ws/rs/client/ClientBuilder".
+        -->
+        <resteasy.version>3.15.6.Final</resteasy.version>
+        <surefire.version>2.22.2</surefire.version>
+        <failsafe.version>2.22.2</failsafe.version>
+    </properties>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <!--
+                    MapStruct writes the mapper implementation classes during
+                    compilation. It is an annotation processor, so it is listed
+                    here and not as an ordinary dependency.
+                -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <configuration>
+                        <release>${java.version}</release>
+                        <annotationProcessorPaths>
+                            <path>
+                                <groupId>org.mapstruct</groupId>
+                                <artifactId>mapstruct-processor</artifactId>
+                                <version>${mapstruct.version}</version>
+                            </path>
+                        </annotationProcessorPaths>
+                        <compilerArgs>
+                            <compilerArg>-Amapstruct.defaultComponentModel=spring</compilerArg>
+                        </compilerArgs>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>${surefire.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-failsafe-plugin</artifactId>
+                    <version>${failsafe.version}</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>

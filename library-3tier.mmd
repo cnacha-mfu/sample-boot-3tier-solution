@@ -1,0 +1,33 @@
+flowchart TB
+    subgraph P["PRESENTATION TIER — library-web-front (port 8081)"]
+        HTML["library.html<br/>jQuery $.ajax"]
+    end
+
+    subgraph S["SERVICE TIER — library-web-service (port 8080)"]
+        CTRL["Controllers<br/>BookController, CategoryController,<br/>MemberController, TransactionController"]
+        DTO["DTOs<br/>BookDTO, CategoryDTO,<br/>MemberDTO, TransactionDTO<br/><i>all the Jackson annotations</i>"]
+        MAP["Assembler / Mapper<br/>MapStruct @Mapper<br/><i>entity to DTO and back</i>"]
+        REPO["Repositories<br/>extends CrudRepository"]
+    end
+
+    subgraph D["DATA SOURCE TIER — library-domain-model"]
+        ENT["Entities<br/>Book, Category,<br/>Member, Transaction<br/><i>only JPA annotations</i>"]
+    end
+
+    DB[("MySQL<br/>spring_db")]
+
+    HTML -- "HTTP + JSON<br/>cross-origin, needs CORS" --> CTRL
+    CTRL <--> DTO
+    CTRL --> MAP
+    MAP <--> DTO
+    MAP <--> ENT
+    CTRL --> REPO
+    REPO <--> ENT
+    ENT -- "JPA / Hibernate" --> DB
+
+    classDef pres fill:#e8f0ff,stroke:#4a76c8
+    classDef svc fill:#eaf7ea,stroke:#4a9a4a
+    classDef data fill:#fff3e0,stroke:#c8862a
+    class HTML pres
+    class CTRL,DTO,MAP,REPO svc
+    class ENT data

@@ -1,0 +1,31 @@
+erDiagram
+    CATEGORY       ||--o{ BOOK        : "has many"
+    BOOK           ||--o{ TRANSACTION : "appears in"
+    LIBRARY_MEMBER ||--o{ TRANSACTION : "makes"
+
+    CATEGORY {
+        BIGINT id PK
+        VARCHAR name
+        VARCHAR description
+    }
+    BOOK {
+        BIGINT id PK
+        VARCHAR title
+        VARCHAR author
+        INT year
+        DATE addedDate
+        BIGINT category_id FK
+    }
+    LIBRARY_MEMBER {
+        BIGINT id PK
+        VARCHAR name
+        VARCHAR email
+        DATE joinDate
+    }
+    TRANSACTION {
+        BIGINT id PK
+        VARCHAR type
+        DATE transactionDate
+        BIGINT book_id FK
+        BIGINT member_id FK
+    }

@@ -1,0 +1,27 @@
+name: Build
+
+# Compiles everything, including the MapStruct annotation processor, so a broken
+# @Mapping is caught here. The integration tests are not run: BookResourceIT needs
+# a MySQL server and a running service, which a plain runner does not have.
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    name: mvn package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 11
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+          cache: maven
+      - name: Compile and package
+        run: >
+          mvn -B package
+          -Dmaven.test.skip=true
+          -Dspring-boot.start.skip=true
+          -Dspring-boot.stop.skip=true
+          --file pom.xml

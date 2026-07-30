@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>th.mfu</groupId>
+        <artifactId>library-3tier</artifactId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>library-web-front</artifactId>
+    <packaging>jar</packaging>
+
+    <!--
+        The PRESENTATION layer. Runs on port 8081.
+
+        Look at what is missing: no JPA, no MySQL driver, no domain model. This
+        module cannot reach the database even if it wanted to - the only way it
+        can get a book is to ask the web service over HTTP. That is the tier
+        boundary, enforced by the build rather than by good intentions.
+
+        The lab serves this page with `mvn jetty:run` on a war. Here it is a
+        small Spring Boot app serving a static file, because you already know
+        how to start one. The idea is the same either way: a SECOND server, on a
+        DIFFERENT port, which is what makes CORS necessary.
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>
